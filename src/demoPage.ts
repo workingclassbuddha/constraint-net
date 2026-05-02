@@ -452,6 +452,7 @@ export function renderDemoPage(): string {
               <label>Order <input id="orderId" value="ord_123" /></label>
               <label>Item <input id="itemId" value="item_headphones" /></label>
               <label>Reason <input id="reason" value="changed_mind" /></label>
+              <label>Pickup window <input id="pickupWindow" value="fastest_free_2026-04-29_09-12" /></label>
             </div>
             <button id="searchBtn" class="primary">Run coherence search</button>
             <div class="metric-row">
@@ -490,6 +491,7 @@ export function renderDemoPage(): string {
               <button id="preflightBtn" class="secondary" disabled>Preflight return</button>
               <button id="confirmBtn" class="secondary" disabled>Confirm</button>
               <button id="executeBtn" class="secondary" disabled>Execute</button>
+              <button id="pickupBtn" class="secondary" disabled>Preflight pickup</button>
             </div>
 
             <div id="confirmation" class="confirmation" hidden></div>
@@ -503,8 +505,11 @@ export function renderDemoPage(): string {
     <script>
       const state = {
         returnStep: null,
+        pickupStep: null,
         preflight: null,
-        confirmation: null
+        confirmation: null,
+        activeAction: null,
+        returnExecution: null
       };
 
       const els = {
@@ -513,10 +518,12 @@ export function renderDemoPage(): string {
         orderId: document.getElementById("orderId"),
         itemId: document.getElementById("itemId"),
         reason: document.getElementById("reason"),
+        pickupWindow: document.getElementById("pickupWindow"),
         searchBtn: document.getElementById("searchBtn"),
         preflightBtn: document.getElementById("preflightBtn"),
         confirmBtn: document.getElementById("confirmBtn"),
         executeBtn: document.getElementById("executeBtn"),
+        pickupBtn: document.getElementById("pickupBtn"),
         path: document.getElementById("path"),
         why: document.getElementById("why"),
         score: document.getElementById("score"),
@@ -564,9 +571,19 @@ export function renderDemoPage(): string {
           "</dl>";
       }
 
+      function renderReceipts(actionName, receipts) {
+        els.receipts.insertAdjacentHTML(
+          "beforeend",
+          receipts
+            .map((receipt) => '<div class="receipt"><strong>' + actionName + " " + receipt.type + '</strong><code>' + receipt.receipt_id + '</code></div>')
+            .join("")
+        );
+      }
+
       els.searchBtn.addEventListener("click", async () => {
         setLog("Resolving coherence path...");
         els.result.hidden = true;
+        els.confirmation.hidden = true;
         els.receipts.innerHTML = "";
         const body = await postJson("/v1/actions/search", {
           goal: els.goal.value,
@@ -579,9 +596,15 @@ export function renderDemoPage(): string {
         const path = body.paths[0];
         renderPath(path);
         state.returnStep = path.step_details.find((step) => step.stable_id === "return.create");
+        state.pickupStep = path.step_details.find((step) => step.stable_id === "pickup.schedule");
+        state.preflight = null;
+        state.confirmation = null;
+        state.activeAction = null;
+        state.returnExecution = null;
         els.preflightBtn.disabled = !state.returnStep;
         els.confirmBtn.disabled = true;
         els.executeBtn.disabled = true;
+        els.pickupBtn.disabled = true;
         setLog("Coherent path found.");
       });
 
@@ -598,10 +621,32 @@ export function renderDemoPage(): string {
         });
         state.preflight = body;
         state.confirmation = body.confirmation;
+        state.activeAction = "return";
         renderConfirmation(body.confirmation);
         els.confirmBtn.disabled = false;
         els.executeBtn.disabled = true;
+        els.pickupBtn.disabled = true;
         setLog("Confirmation required before execution.");
+      });
+
+      els.pickupBtn.addEventListener("click", async () => {
+        setLog("Preflighting fastest free pickup...");
+        const body = await postJson("/v1/executions/preflight", {
+          action_id: state.pickupStep.action_id,
+          manifest_digest: state.pickupStep.manifest_digest,
+          inputs: {
+            return_id: state.returnExecution.result.return_id,
+            pickup_window: els.pickupWindow.value
+          }
+        });
+        state.preflight = body;
+        state.confirmation = body.confirmation;
+        state.activeAction = "pickup";
+        renderConfirmation(body.confirmation);
+        els.confirmBtn.disabled = false;
+        els.executeBtn.disabled = true;
+        els.pickupBtn.disabled = true;
+        setLog("Pickup confirmation required before scheduling.");
       });
 
       els.confirmBtn.addEventListener("click", async () => {
@@ -611,6 +656,7 @@ export function renderDemoPage(): string {
         });
         state.confirmation = confirmation;
         els.executeBtn.disabled = false;
+        els.pickupBtn.disabled = true;
         setLog("Confirmed. Execution rail is armed.");
       });
 
@@ -622,11 +668,26 @@ export function renderDemoPage(): string {
           idempotency_key: "ui_" + Date.now()
         });
         els.result.hidden = false;
-        els.result.textContent = "Return created: " + body.result.return_id + " | refund $" + body.result.refund_amount;
-        els.receipts.innerHTML = body.receipts
-          .map((receipt) => '<div class="receipt"><strong>' + receipt.type + '</strong><code>' + receipt.receipt_id + '</code></div>')
-          .join("");
-        setLog("Execution complete. Receipts signed.");
+        if (state.activeAction === "return") {
+          state.returnExecution = body;
+          els.result.textContent = "Return created: " + body.result.return_id + " | refund $" + body.result.refund_amount;
+          renderReceipts("return", body.receipts);
+          els.pickupBtn.disabled = !state.pickupStep;
+          setLog("Return created. Fastest free pickup is ready to preflight.");
+        } else {
+          els.result.textContent =
+            "Return created: " +
+            state.returnExecution.result.return_id +
+            " | Pickup scheduled: " +
+            body.result.pickup_id +
+            " | window " +
+            body.result.pickup_window;
+          renderReceipts("pickup", body.receipts);
+          els.pickupBtn.disabled = true;
+          setLog("Pickup scheduled. Receipts signed.");
+        }
+        els.confirmBtn.disabled = true;
+        els.executeBtn.disabled = true;
       });
     </script>
   </body>

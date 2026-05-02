@@ -4,6 +4,8 @@ import { soundmartManifest } from "./examples/soundmartManifest.js";
 import { createMemoryStore, type MemoryStore } from "./memoryStore.js";
 import { planCoherentPath } from "./planner.js";
 import { decideConfirmation, executePreflight, preflightAction } from "./runtime.js";
+import type { ConstraintManifest } from "./types.js";
+import { validateManifest } from "./validator.js";
 
 export type BuildServerOptions = {
   store?: MemoryStore;
@@ -15,11 +17,36 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   app.get("/", async (_request, reply) => reply.type("text/html").send(renderDemoPage()));
 
+  app.get("/favicon.ico", async (_request, reply) => reply.code(204).send());
+
   app.get("/v1/health", async () => ({
     name: "Constraint Net",
     status: "ok",
     thesis: "Resolve agent action paths by coherence under constraints."
   }));
+
+  app.post<{
+    Body: ConstraintManifest;
+  }>("/v1/manifests", async (request, reply) => {
+    const validation = validateManifest(request.body);
+    if (!validation.valid) {
+      return reply.code(400).send({
+        status: "manifest_invalid",
+        errors: validation.errors,
+        warnings: validation.warnings
+      });
+    }
+
+    const stored = store.ingestManifest(request.body);
+    return reply.code(201).send({
+      status: "manifest_ingested",
+      manifest_id: request.body.manifest_id,
+      publisher_domain: request.body.publisher.primary_domain,
+      manifest_digest: stored.digest,
+      action_count: request.body.actions.length,
+      warnings: validation.warnings
+    });
+  });
 
   app.post<{
     Body: Parameters<typeof planCoherentPath>[1];

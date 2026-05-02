@@ -137,6 +137,85 @@ describe("API flow", () => {
     expect(response.body).toContain("Constraint Net");
     expect(response.body).toContain("Run coherence search");
     expect(response.body).toContain("Coherence field");
+    expect(response.body).toContain("Preflight pickup");
+    expect(response.body).toContain("Pickup scheduled");
+
+    await server.close();
+  });
+
+  it("serves an empty favicon response to keep the browser console quiet", async () => {
+    const server = buildServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/favicon.ico"
+    });
+
+    expect(response.statusCode).toBe(204);
+
+    await server.close();
+  });
+
+  it("ingests a manifest through the API and makes its actions searchable", async () => {
+    const store = createMemoryStore();
+    const server = buildServer({ store });
+
+    const ingestResponse = await server.inject({
+      method: "POST",
+      url: "/v1/manifests",
+      payload: soundmartManifest
+    });
+
+    expect(ingestResponse.statusCode).toBe(201);
+    const ingestBody = ingestResponse.json();
+    expect(ingestBody.status).toBe("manifest_ingested");
+    expect(ingestBody.manifest_id).toBe(soundmartManifest.manifest_id);
+    expect(ingestBody.publisher_domain).toBe("soundmart.example");
+    expect(ingestBody.action_count).toBe(3);
+    expect(ingestBody.manifest_digest).toBe(store.currentDigest());
+
+    const searchResponse = await server.inject({
+      method: "POST",
+      url: "/v1/actions/search",
+      payload: {
+        goal: "Return my headphones from SoundMart and choose the fastest free pickup",
+        constraints: {
+          merchant: "soundmart.example",
+          risk_tiers_allowed: [0, 1, 2],
+          requires_reversible: true
+        }
+      }
+    });
+
+    expect(searchResponse.statusCode).toBe(200);
+    expect(searchResponse.json().paths[0].steps).toEqual([
+      "return.check_eligibility",
+      "return.create",
+      "pickup.schedule"
+    ]);
+
+    await server.close();
+  });
+
+  it("rejects invalid manifest ingestion requests with validation errors", async () => {
+    const server = buildServer({ store: createMemoryStore() });
+    const brokenManifest = structuredClone(soundmartManifest) as Record<string, unknown>;
+    delete brokenManifest.actions;
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/manifests",
+      payload: brokenManifest
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = response.json();
+    expect(body.status).toBe("manifest_invalid");
+    expect(body.errors).toContainEqual(
+      expect.objectContaining({
+        code: "schema_validation_failed"
+      })
+    );
 
     await server.close();
   });

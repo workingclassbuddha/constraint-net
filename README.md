@@ -12,6 +12,7 @@ The prototype includes:
 
 - `actions.json`-style manifest schema and validation.
 - A SoundMart demo manifest.
+- Manifest ingestion at `POST /v1/manifests`.
 - A coherence path planner.
 - Tier 0-2 preflight and confirmation rules.
 - Mock OpenAPI-backed execution.
@@ -46,5 +47,18 @@ In the browser console:
 2. Preflight return.
 3. Confirm.
 4. Execute.
+5. Preflight pickup.
+6. Confirm.
+7. Execute.
 
-The execution returns signed receipt IDs for intent, consent, and execution.
+The executions return signed receipt IDs for intent, consent, and execution.
+
+## API
+
+- `GET /v1/health`
+- `POST /v1/manifests`
+- `POST /v1/actions/search`
+- `POST /v1/executions/preflight`
+- `POST /v1/confirmations/:id/decision`
+- `POST /v1/executions`
+- `GET /v1/receipts/:id`
