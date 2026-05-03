@@ -5,7 +5,7 @@ import { soundmartManifest } from "../src/examples/soundmartManifest.js";
 import { createMemoryStore } from "../src/memoryStore.js";
 import { planCoherentPath } from "../src/planner.js";
 import { createSignedReceipt, verifyReceipt } from "../src/receipts.js";
-import { preflightAction } from "../src/runtime.js";
+import { decideConfirmation, executePreflight, preflightAction } from "../src/runtime.js";
 import { validateManifest } from "../src/validator.js";
 
 describe("manifest validation", () => {
@@ -249,6 +249,65 @@ describe("preflight policy", () => {
     });
 
     expect(result.status).toBe("manifest_digest_mismatch");
+  });
+
+  it("replays idempotent executions without creating new receipts", () => {
+    const store = createMemoryStore();
+    store.ingestManifest(soundmartManifest);
+    const action = store.getActionByStableId("return.create");
+    if (!action) throw new Error("fixture missing return.create");
+
+    const preflight = preflightAction(store, {
+      action_id: action.id,
+      manifest_digest: action.manifest_digest,
+      inputs: { order_id: "ord_123", item_id: "item_headphones", reason: "changed_mind" }
+    });
+    if (preflight.status !== "confirmation_required" || !preflight.confirmation) throw new Error("expected confirmation");
+    decideConfirmation(store, preflight.confirmation.id, "confirm");
+
+    const first = executePreflight(store, {
+      preflight_id: preflight.preflight_id,
+      confirmation_id: preflight.confirmation.id,
+      idempotency_key: "idem_same"
+    });
+    const second = executePreflight(store, {
+      preflight_id: preflight.preflight_id,
+      confirmation_id: preflight.confirmation.id,
+      idempotency_key: "idem_same"
+    });
+
+    expect(first.status).toBe("succeeded");
+    expect(second.status).toBe("succeeded");
+    expect(second.replayed).toBe(true);
+    expect(second.receipts).toEqual(first.receipts);
+  });
+
+  it("blocks a second idempotency key for an already executed preflight", () => {
+    const store = createMemoryStore();
+    store.ingestManifest(soundmartManifest);
+    const action = store.getActionByStableId("return.create");
+    if (!action) throw new Error("fixture missing return.create");
+
+    const preflight = preflightAction(store, {
+      action_id: action.id,
+      manifest_digest: action.manifest_digest,
+      inputs: { order_id: "ord_123", item_id: "item_headphones", reason: "changed_mind" }
+    });
+    if (preflight.status !== "confirmation_required" || !preflight.confirmation) throw new Error("expected confirmation");
+    decideConfirmation(store, preflight.confirmation.id, "confirm");
+
+    executePreflight(store, {
+      preflight_id: preflight.preflight_id,
+      confirmation_id: preflight.confirmation.id,
+      idempotency_key: "idem_first"
+    });
+    const second = executePreflight(store, {
+      preflight_id: preflight.preflight_id,
+      confirmation_id: preflight.confirmation.id,
+      idempotency_key: "idem_other"
+    });
+
+    expect(second.status).toBe("preflight_already_executed");
   });
 });
 

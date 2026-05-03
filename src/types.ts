@@ -200,6 +200,18 @@ export type PreflightRecord = {
   intent_receipt_id: string;
 };
 
+export type ExecutionRecord = {
+  id: string;
+  preflight_id: string;
+  action_id: string;
+  manifest_digest: string;
+  idempotency_key: string;
+  status: "succeeded" | "failed_retryable" | "failed_terminal";
+  result: Record<string, unknown>;
+  receipt_ids: string[];
+  created_at: string;
+};
+
 export type ReceiptType = "intent" | "consent" | "execution";
 
 export type SignedReceipt = {

@@ -3,6 +3,7 @@ import { createSignedReceipt } from "./receipts.js";
 import type {
   Confirmation,
   ConstraintManifest,
+  ExecutionRecord,
   PreflightRecord,
   SignedReceipt,
   StoredAction,
@@ -16,6 +17,7 @@ export function createMemoryStore() {
   const actions = new Map<string, StoredAction>();
   const confirmations = new Map<string, Confirmation>();
   const preflights = new Map<string, PreflightRecord>();
+  const executions = new Map<string, ExecutionRecord>();
   const receipts = new Map<string, SignedReceipt>();
   let latestDigest = "";
 
@@ -83,6 +85,25 @@ export function createMemoryStore() {
 
     getPreflight(id: string): PreflightRecord | undefined {
       return preflights.get(id);
+    },
+
+    saveExecution(execution: ExecutionRecord): ExecutionRecord {
+      executions.set(execution.id, execution);
+      return execution;
+    },
+
+    getExecution(id: string): ExecutionRecord | undefined {
+      return executions.get(id);
+    },
+
+    findExecutionByPreflight(preflightId: string): ExecutionRecord | undefined {
+      return [...executions.values()].find((execution) => execution.preflight_id === preflightId);
+    },
+
+    findExecutionByPreflightAndIdempotency(preflightId: string, idempotencyKey: string): ExecutionRecord | undefined {
+      return [...executions.values()].find(
+        (execution) => execution.preflight_id === preflightId && execution.idempotency_key === idempotencyKey
+      );
     },
 
     saveReceipt(receipt: SignedReceipt): SignedReceipt {
