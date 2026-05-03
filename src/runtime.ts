@@ -143,6 +143,31 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput) {
     }
   }
 
+  const exactReplay = store.findExecutionByPreflightAndIdempotency(preflight.id, input.idempotency_key);
+  if (exactReplay) {
+    return {
+      execution_id: exactReplay.id,
+      status: exactReplay.status,
+      replayed: true,
+      result: exactReplay.result,
+      receipts: exactReplay.receipt_ids
+        .map((receiptId) => store.getReceipt(receiptId))
+        .filter((receipt): receipt is SignedReceipt => Boolean(receipt))
+        .map((receipt) => ({
+          type: receipt.type,
+          receipt_id: receipt.receipt_id
+        }))
+    };
+  }
+
+  const priorExecution = store.findExecutionByPreflight(preflight.id);
+  if (priorExecution) {
+    return {
+      status: "preflight_already_executed" as const,
+      execution_id: priorExecution.id
+    };
+  }
+
   const result = executeMockProvider(action, preflight.inputs, input.idempotency_key);
   const validateOutput = ajv.compile(action.output_schema);
   if (!validateOutput(result)) {
@@ -200,6 +225,18 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput) {
   });
 
   const receipts = [intentReceipt, consentReceipt, executionReceipt].filter((receipt): receipt is SignedReceipt => Boolean(receipt));
+
+  store.saveExecution({
+    id: executionId,
+    preflight_id: preflight.id,
+    action_id: action.id,
+    manifest_digest: action.manifest_digest,
+    idempotency_key: input.idempotency_key,
+    status: "succeeded",
+    result,
+    receipt_ids: receipts.map((receipt) => receipt.receipt_id),
+    created_at: new Date().toISOString()
+  });
 
   return {
     execution_id: executionId,

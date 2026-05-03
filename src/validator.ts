@@ -1,12 +1,7 @@
 import { createAjv } from "./ajv.js";
 import { actionsManifestSchema } from "./manifestSchema.js";
-import type { ConstraintAction, ConstraintManifest } from "./types.js";
-
-export type ValidationIssue = {
-  path: string;
-  code: string;
-  message: string;
-};
+import { validateManifestTrust, type ManifestValidationOptions } from "./trust.js";
+import type { ConstraintAction, ConstraintManifest, ValidationIssue } from "./types.js";
 
 export type ManifestValidationResult = {
   valid: boolean;
@@ -18,7 +13,7 @@ const ajv = createAjv();
 
 const validateSchema = ajv.compile(actionsManifestSchema);
 
-export function validateManifest(manifest: ConstraintManifest): ManifestValidationResult {
+export function validateManifest(manifest: ConstraintManifest, options: ManifestValidationOptions = {}): ManifestValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
@@ -31,6 +26,8 @@ export function validateManifest(manifest: ConstraintManifest): ManifestValidati
       });
     }
   }
+
+  errors.push(...validateManifestTrust(manifest, options));
 
   for (const [index, action] of manifest.actions?.entries() ?? []) {
     errors.push(...riskLintAction(action, `$.actions[${index}]`));

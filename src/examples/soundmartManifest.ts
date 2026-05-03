@@ -1,6 +1,8 @@
+import { DEV_PUBLIC_KEY_PEM } from "../keys.js";
+import { signManifest } from "../trust.js";
 import type { ConstraintManifest } from "../types.js";
 
-export const soundmartManifest: ConstraintManifest = {
+const unsignedSoundmartManifest: Omit<ConstraintManifest, "signatures"> = {
   $schema: "https://spec.constraint.net/schemas/actions-manifest-0.1.json",
   actions_manifest_version: "0.1",
   manifest_id: "urn:constraint-manifest:soundmart.example:v1",
@@ -28,7 +30,14 @@ export const soundmartManifest: ConstraintManifest = {
   key_discovery: {
     jwks_uri: "https://soundmart.example/.well-known/constraint-net-jwks.json",
     signing_algorithms: ["EdDSA"],
-    active_kids: ["soundmart-demo-2026-04"]
+    active_kids: ["soundmart-demo-2026-04"],
+    public_keys: [
+      {
+        kid: "soundmart-demo-2026-04",
+        alg: "Ed25519",
+        public_key_pem: DEV_PUBLIC_KEY_PEM
+      }
+    ]
   },
   links: {
     openapi: [
@@ -113,6 +122,11 @@ export const soundmartManifest: ConstraintManifest = {
           timeout_ms: 3000
         }
       ],
+      planning: {
+        intent_tags: ["return", "eligibility", "refund", "headphones"],
+        requires: ["order_id", "item_id"],
+        produces: ["eligible", "returnable_item", "refund_amount", "free_pickup_available"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"
@@ -184,6 +198,12 @@ export const soundmartManifest: ConstraintManifest = {
           }
         }
       ],
+      planning: {
+        intent_tags: ["return", "create", "refund"],
+        requires: ["order_id", "item_id", "reason", "eligible"],
+        produces: ["return_id", "refund_amount", "cancel_until"],
+        after: ["return.check_eligibility"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"
@@ -254,16 +274,18 @@ export const soundmartManifest: ConstraintManifest = {
           }
         }
       ],
+      planning: {
+        intent_tags: ["pickup", "schedule", "free", "fastest"],
+        requires: ["return_id", "free_pickup_available", "pickup_window"],
+        produces: ["pickup_id", "pickup_window", "cancel_until"],
+        after: ["return.create"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"
       }
     }
   ],
-  signatures: [
-    {
-      protected: "example-protected-header",
-      signature: "example-signature"
-    }
-  ]
 };
+
+export const soundmartManifest: ConstraintManifest = signManifest(unsignedSoundmartManifest, "soundmart-demo-2026-04");

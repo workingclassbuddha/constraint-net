@@ -1,5 +1,11 @@
 export type RiskTier = 0 | 1 | 2;
 
+export type ValidationIssue = {
+  path: string;
+  code: string;
+  message: string;
+};
+
 export type JsonSchema = {
   type?: string;
   required?: string[];
@@ -32,12 +38,29 @@ export type ConstraintManifest = {
   sequence: number;
   status: "active" | "deprecated" | "suspended" | "revoked";
   domain_verification: Record<string, unknown>;
-  key_discovery: Record<string, unknown>;
+  key_discovery: {
+    jwks_uri?: string;
+    signing_algorithms?: string[];
+    active_kids?: string[];
+    public_keys?: ManifestPublicKey[];
+  };
   links: Record<string, unknown>;
   indexing: Record<string, unknown>;
   policies: Record<string, unknown>;
   actions: ConstraintAction[];
-  signatures: Array<Record<string, string>>;
+  signatures: ManifestSignature[];
+};
+
+export type ManifestSignature = {
+  alg: "Ed25519";
+  kid: string;
+  signature: string;
+};
+
+export type ManifestPublicKey = {
+  kid: string;
+  alg: "Ed25519";
+  public_key_pem: string;
 };
 
 export type ConstraintAction = {
@@ -75,10 +98,18 @@ export type ConstraintAction = {
     cancel_until_policy?: string;
   };
   execution: ConstraintExecutionBinding[];
+  planning?: ActionPlanningMetadata;
   terms: {
     terms_url: string;
     privacy_url: string;
   };
+};
+
+export type ActionPlanningMetadata = {
+  intent_tags: string[];
+  requires: string[];
+  produces: string[];
+  after?: string[];
 };
 
 export type ConstraintExecutionBinding = {
@@ -95,8 +126,20 @@ export type ConstraintExecutionBinding = {
 
 export type StoredManifest = {
   digest: string;
+  source_url?: string;
+  discovered_at?: string;
+  trust_status: ManifestTrustStatus;
   manifest: ConstraintManifest;
 };
+
+export type ManifestTrustStatus =
+  | "trusted"
+  | "unsigned"
+  | "signature_invalid"
+  | "expired"
+  | "not_yet_valid"
+  | "revoked"
+  | "unsupported_version";
 
 export type StoredAction = ConstraintAction & {
   manifest_digest: string;
@@ -110,6 +153,7 @@ export type SearchQuery = {
     risk_tiers_allowed?: RiskTier[];
     requires_reversible?: boolean;
   };
+  available_inputs?: Record<string, unknown>;
 };
 
 export type PlannedStep = {
@@ -118,6 +162,8 @@ export type PlannedStep = {
   manifest_digest: string;
   risk_tier: RiskTier;
   confirmation_required: boolean;
+  requires: string[];
+  produces: string[];
 };
 
 export type PlannedPath = {
@@ -154,6 +200,18 @@ export type PreflightRecord = {
   intent_receipt_id: string;
 };
 
+export type ExecutionRecord = {
+  id: string;
+  preflight_id: string;
+  action_id: string;
+  manifest_digest: string;
+  idempotency_key: string;
+  status: "succeeded" | "failed_retryable" | "failed_terminal";
+  result: Record<string, unknown>;
+  receipt_ids: string[];
+  created_at: string;
+};
+
 export type ReceiptType = "intent" | "consent" | "execution";
 
 export type SignedReceipt = {
@@ -175,7 +233,14 @@ export type SignedReceipt = {
   previous_receipt_hash?: string;
   signature: {
     alg: "Ed25519";
-    kid: "constraint-net-dev-2026-04";
+    kid: string;
     value: string;
   };
+};
+
+export type ReceiptVerificationResult = {
+  valid: boolean;
+  receipt_count: number;
+  chain: string[];
+  errors: ValidationIssue[];
 };

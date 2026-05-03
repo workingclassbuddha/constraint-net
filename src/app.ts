@@ -1,21 +1,27 @@
 import Fastify from "fastify";
 import { renderDemoPage } from "./demoPage.js";
+import { fetchManifestFromUrl, publisherDomainFromManifestUrl } from "./discovery.js";
 import { soundmartManifest } from "./examples/soundmartManifest.js";
 import { createMemoryStore, type MemoryStore } from "./memoryStore.js";
 import { planCoherentPath } from "./planner.js";
+import { verifyReceiptChain } from "./receiptVerification.js";
 import { decideConfirmation, executePreflight, preflightAction } from "./runtime.js";
-import type { ConstraintManifest } from "./types.js";
+import type { ConstraintManifest, SignedReceipt } from "./types.js";
 import { validateManifest } from "./validator.js";
 
 export type BuildServerOptions = {
   store?: MemoryStore;
+  fetchManifest?: (url: string) => Promise<ConstraintManifest>;
 };
 
 export function buildServer(options: BuildServerOptions = {}) {
   const store = options.store ?? createDefaultStore();
+  const fetchManifest = options.fetchManifest ?? fetchManifestFromUrl;
   const app = Fastify({ logger: false });
 
   app.get("/", async (_request, reply) => reply.type("text/html").send(renderDemoPage()));
+
+  app.get("/.well-known/constraint-net/actions.json", async () => soundmartManifest);
 
   app.get("/favicon.ico", async (_request, reply) => reply.code(204).send());
 
@@ -46,6 +52,46 @@ export function buildServer(options: BuildServerOptions = {}) {
       action_count: request.body.actions.length,
       warnings: validation.warnings
     });
+  });
+
+  app.post<{
+    Body: { url: string };
+  }>("/v1/manifests/ingest-url", async (request, reply) => {
+    try {
+      const manifest = await fetchManifest(request.body.url);
+      const validation = validateManifest(manifest, {
+        expectedPublisherDomain: publisherDomainFromManifestUrl(request.body.url)
+      });
+
+      if (!validation.valid) {
+        return reply.code(400).send({
+          status: "manifest_invalid",
+          source_url: request.body.url,
+          errors: validation.errors,
+          warnings: validation.warnings
+        });
+      }
+
+      const stored = store.ingestManifest(manifest, {
+        source_url: request.body.url,
+        trust_status: "trusted"
+      });
+      return reply.code(201).send({
+        status: "manifest_ingested",
+        manifest_id: manifest.manifest_id,
+        publisher_domain: manifest.publisher.primary_domain,
+        manifest_digest: stored.digest,
+        action_count: manifest.actions.length,
+        source_url: request.body.url,
+        warnings: validation.warnings
+      });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "manifest_fetch_failed",
+        source_url: request.body.url,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   });
 
   app.post<{
@@ -101,6 +147,13 @@ export function buildServer(options: BuildServerOptions = {}) {
     const receipt = store.getReceipt(request.params.id);
     if (!receipt) return reply.code(404).send({ status: "receipt_not_found" });
     return receipt;
+  });
+
+  app.post<{
+    Body: { receipts: SignedReceipt[] };
+  }>("/v1/receipts/verify", async (request, reply) => {
+    const result = verifyReceiptChain(request.body.receipts);
+    return reply.code(result.valid ? 200 : 400).send(result);
   });
 
   return app;
