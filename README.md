@@ -2,6 +2,12 @@
 
 Constraint Net is a coherence-first execution layer for AI agents.
 
+## Status: Public Alpha
+
+Constraint Net is ready for public protocol review, local experiments, and small demo integrations. It is not production key custody, not a hosted network, and not a claim that real-world publishers have opted in.
+
+The current gateway uses in-memory state, a public development signing key, and mock OpenAPI-backed execution. Those choices keep the alpha easy to run and verify locally; production deployments must replace them with durable storage, publisher-owned keys, real OpenAPI operation resolution, monitoring, and operational controls.
+
 This MVP demonstrates a safe, reversible customer-service workflow:
 
 ```text
@@ -82,3 +88,12 @@ The executions return signed receipt IDs for intent, consent, and execution.
 - [Protocol overview](docs/protocol.md)
 - [Publisher onboarding](docs/publisher-onboarding.md)
 - [Agent builder guide](docs/agent-builder-guide.md)
+- [Public launch checklist](docs/launch-checklist.md)
+
+## Launch Boundaries
+
+- Consent first: Tier 2 side effects require confirmation and reversible metadata.
+- Replay safe: execution requires idempotency keys and blocks conflicting replays.
+- Verifiable: receipts are signed and can be checked outside the running process.
+- Alpha only: the committed development issuer key is intentionally public and only supports reproducible examples.
+- Local only: manifests, confirmations, executions, and receipts are stored in memory in this gateway.

@@ -1,5 +1,7 @@
 export const DEV_KEY_ID = "constraint-net-dev-2026-05";
 
+// This is a public development issuer for reproducible local examples and tests.
+// Do not use this private key for production publishers, hosted gateways, or real receipts.
 export const DEV_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEIOC68Bzd/kyQPe54raxib3DBePf6KBXVMGsdsuor1ziR
 -----END PRIVATE KEY-----`;
