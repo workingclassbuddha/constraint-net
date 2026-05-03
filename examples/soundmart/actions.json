@@ -1,0 +1,436 @@
+{
+  "$schema": "https://spec.constraint.net/schemas/actions-manifest-0.1.json",
+  "actions_manifest_version": "0.1",
+  "manifest_id": "urn:constraint-manifest:soundmart.example:v1",
+  "issued_at": "2026-04-28T00:00:00.000Z",
+  "expires_at": "2026-05-05T00:00:00.000Z",
+  "sequence": 1,
+  "status": "active",
+  "publisher": {
+    "id": "urn:publisher:soundmart.example",
+    "display_name": "SoundMart",
+    "legal_name": "SoundMart Demo Inc.",
+    "primary_domain": "soundmart.example",
+    "support_email": "support@soundmart.example",
+    "country": "US"
+  },
+  "domain_verification": {
+    "methods": [
+      {
+        "type": "http_well_known_challenge",
+        "url": "https://soundmart.example/.well-known/constraint-net-verification.txt",
+        "verified_at": "2026-04-28T00:00:00.000Z"
+      }
+    ]
+  },
+  "key_discovery": {
+    "jwks_uri": "https://soundmart.example/.well-known/constraint-net-jwks.json",
+    "signing_algorithms": [
+      "EdDSA"
+    ],
+    "active_kids": [
+      "soundmart-demo-2026-04"
+    ],
+    "public_keys": [
+      {
+        "kid": "soundmart-demo-2026-04",
+        "alg": "Ed25519",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAXKy0pYdM+qytZ/d8ZYaecPmSwREApaFGOgAwc+dBk28=\n-----END PUBLIC KEY-----"
+      }
+    ]
+  },
+  "links": {
+    "openapi": [
+      {
+        "id": "soundmart-post-purchase-api",
+        "url": "https://api.soundmart.example/openapi.json",
+        "sha256": "sha256-demo-openapi"
+      }
+    ],
+    "terms": "https://soundmart.example/terms",
+    "privacy": "https://soundmart.example/privacy"
+  },
+  "indexing": {
+    "allow_public_indexing": true,
+    "allow_execution_brokerage": true,
+    "cache_ttl_seconds": 600
+  },
+  "policies": {
+    "default_locale": "en-US",
+    "data_retention_days": 90,
+    "confirmation_defaults": {
+      "tier_1": "first_auth",
+      "tier_2": "required"
+    }
+  },
+  "actions": [
+    {
+      "id": "urn:action:soundmart.example:return.check_eligibility:v1",
+      "stable_id": "return.check_eligibility",
+      "version": "1.0.0",
+      "revision": 1,
+      "status": "active",
+      "title": "Check return eligibility",
+      "description": "Check whether a SoundMart order item can be returned.",
+      "machine_description": "Reads return eligibility, refund estimate, item details, and available return window for a specific order item. Does not create a return.",
+      "taxonomy": {
+        "category": "commerce.return.check_eligibility",
+        "vertical": "ecommerce_returns"
+      },
+      "risk": {
+        "tier": 1,
+        "side_effect": "none",
+        "data_sensitivity": "order_private"
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "item_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "eligible",
+          "item_name",
+          "refund_amount",
+          "free_pickup_available"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "eligible": {
+            "type": "boolean"
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "number"
+          },
+          "free_pickup_available": {
+            "type": "boolean"
+          }
+        }
+      },
+      "auth": {
+        "required": true,
+        "scopes": [
+          "orders.read",
+          "returns.read"
+        ]
+      },
+      "confirmation": {
+        "required": false,
+        "must_display": []
+      },
+      "reversibility": {
+        "reversible": false
+      },
+      "execution": [
+        {
+          "type": "openapi",
+          "ref": "soundmart-post-purchase-api",
+          "operation_id": "checkReturnEligibility",
+          "operation_ref": "#/paths/~1orders~1{order_id}~1return-eligibility/get",
+          "timeout_ms": 3000
+        }
+      ],
+      "planning": {
+        "intent_tags": [
+          "return",
+          "eligibility",
+          "refund",
+          "headphones"
+        ],
+        "requires": [
+          "order_id",
+          "item_id"
+        ],
+        "produces": [
+          "eligible",
+          "returnable_item",
+          "refund_amount",
+          "free_pickup_available"
+        ]
+      },
+      "terms": {
+        "terms_url": "https://soundmart.example/terms",
+        "privacy_url": "https://soundmart.example/privacy"
+      }
+    },
+    {
+      "id": "urn:action:soundmart.example:return.create:v1",
+      "stable_id": "return.create",
+      "version": "1.0.0",
+      "revision": 1,
+      "status": "active",
+      "title": "Create return",
+      "description": "Create a reversible return for a SoundMart order item.",
+      "machine_description": "Creates a reversible merchandise return for an eligible order item. Produces a return ID and refund status.",
+      "taxonomy": {
+        "category": "commerce.return.create",
+        "vertical": "ecommerce_returns"
+      },
+      "risk": {
+        "tier": 2,
+        "side_effect": "return_created",
+        "data_sensitivity": "order_private"
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "changed_mind",
+              "defective",
+              "wrong_item",
+              "other"
+            ]
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "return_id",
+          "status",
+          "refund_amount",
+          "cancel_until"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "return_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "number"
+          },
+          "cancel_until": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "auth": {
+        "required": true,
+        "scopes": [
+          "returns.write"
+        ]
+      },
+      "confirmation": {
+        "required": true,
+        "expires_after_seconds": 600,
+        "must_display": [
+          "publisher.display_name",
+          "order_id",
+          "item_id",
+          "refund_amount",
+          "reversibility.cancel_until_policy",
+          "data_shared"
+        ]
+      },
+      "reversibility": {
+        "reversible": true,
+        "cancel_action_id": "urn:action:soundmart.example:return.cancel:v1",
+        "cancel_until_policy": "Return can be cancelled until the pickup scan."
+      },
+      "execution": [
+        {
+          "type": "openapi",
+          "ref": "soundmart-post-purchase-api",
+          "operation_id": "createReturn",
+          "operation_ref": "#/paths/~1returns/post",
+          "timeout_ms": 5000,
+          "idempotency": {
+            "required": true,
+            "header": "Idempotency-Key"
+          }
+        }
+      ],
+      "planning": {
+        "intent_tags": [
+          "return",
+          "create",
+          "refund"
+        ],
+        "requires": [
+          "order_id",
+          "item_id",
+          "reason",
+          "eligible"
+        ],
+        "produces": [
+          "return_id",
+          "refund_amount",
+          "cancel_until"
+        ],
+        "after": [
+          "return.check_eligibility"
+        ]
+      },
+      "terms": {
+        "terms_url": "https://soundmart.example/terms",
+        "privacy_url": "https://soundmart.example/privacy"
+      }
+    },
+    {
+      "id": "urn:action:soundmart.example:pickup.schedule:v1",
+      "stable_id": "pickup.schedule",
+      "version": "1.0.0",
+      "revision": 1,
+      "status": "active",
+      "title": "Schedule free pickup",
+      "description": "Schedule a reversible free pickup for a SoundMart return.",
+      "machine_description": "Schedules a pickup window for an existing return. Requires a return ID and selected pickup window.",
+      "taxonomy": {
+        "category": "commerce.pickup.schedule",
+        "vertical": "ecommerce_returns"
+      },
+      "risk": {
+        "tier": 2,
+        "side_effect": "pickup_scheduled",
+        "data_sensitivity": "address_contact"
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "return_id",
+          "pickup_window"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "return_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pickup_window": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "pickup_id",
+          "status",
+          "pickup_window",
+          "cancel_until"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "pickup_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "pickup_window": {
+            "type": "string"
+          },
+          "cancel_until": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "auth": {
+        "required": true,
+        "scopes": [
+          "pickups.write"
+        ]
+      },
+      "confirmation": {
+        "required": true,
+        "expires_after_seconds": 600,
+        "must_display": [
+          "publisher.display_name",
+          "return_id",
+          "pickup_window",
+          "reversibility.cancel_until_policy",
+          "data_shared"
+        ]
+      },
+      "reversibility": {
+        "reversible": true,
+        "cancel_action_id": "urn:action:soundmart.example:pickup.cancel:v1",
+        "cancel_until_policy": "Pickup can be cancelled until 2 hours before the window starts."
+      },
+      "execution": [
+        {
+          "type": "openapi",
+          "ref": "soundmart-post-purchase-api",
+          "operation_id": "schedulePickup",
+          "operation_ref": "#/paths/~1pickups/post",
+          "timeout_ms": 5000,
+          "idempotency": {
+            "required": true,
+            "header": "Idempotency-Key"
+          }
+        }
+      ],
+      "planning": {
+        "intent_tags": [
+          "pickup",
+          "schedule",
+          "free",
+          "fastest"
+        ],
+        "requires": [
+          "return_id",
+          "free_pickup_available",
+          "pickup_window"
+        ],
+        "produces": [
+          "pickup_id",
+          "pickup_window",
+          "cancel_until"
+        ],
+        "after": [
+          "return.create"
+        ]
+      },
+      "terms": {
+        "terms_url": "https://soundmart.example/terms",
+        "privacy_url": "https://soundmart.example/privacy"
+      }
+    }
+  ],
+  "signatures": [
+    {
+      "alg": "Ed25519",
+      "kid": "soundmart-demo-2026-04",
+      "signature": "2o9qYHFsubPNw9ReMaCD-fbObaiUtqg7GLPx8YFQnWwRExKms_vXhIHjXmqDRC3dvXQcoUlAMDee4XSlEK7mAw"
+    }
+  ]
+}
