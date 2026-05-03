@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/app.js";
 import { wellKnownActionsUrl } from "../src/discovery.js";
@@ -532,5 +536,21 @@ describe("API flow", () => {
     ]);
 
     await server.close();
+  });
+});
+
+describe("CLI", () => {
+  it("validates a manifest file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "constraint-net-"));
+    const manifestPath = join(dir, "actions.json");
+    writeFileSync(manifestPath, JSON.stringify(soundmartManifest));
+
+    const output = execFileSync("pnpm", ["tsx", "src/cli.ts", "validate", manifestPath], {
+      cwd: process.cwd(),
+      encoding: "utf8"
+    });
+
+    expect(output).toContain("manifest valid");
+    expect(output).toContain(soundmartManifest.manifest_id);
   });
 });
