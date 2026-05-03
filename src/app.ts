@@ -4,8 +4,9 @@ import { fetchManifestFromUrl, publisherDomainFromManifestUrl } from "./discover
 import { soundmartManifest } from "./examples/soundmartManifest.js";
 import { createMemoryStore, type MemoryStore } from "./memoryStore.js";
 import { planCoherentPath } from "./planner.js";
+import { verifyReceiptChain } from "./receiptVerification.js";
 import { decideConfirmation, executePreflight, preflightAction } from "./runtime.js";
-import type { ConstraintManifest } from "./types.js";
+import type { ConstraintManifest, SignedReceipt } from "./types.js";
 import { validateManifest } from "./validator.js";
 
 export type BuildServerOptions = {
@@ -146,6 +147,13 @@ export function buildServer(options: BuildServerOptions = {}) {
     const receipt = store.getReceipt(request.params.id);
     if (!receipt) return reply.code(404).send({ status: "receipt_not_found" });
     return receipt;
+  });
+
+  app.post<{
+    Body: { receipts: SignedReceipt[] };
+  }>("/v1/receipts/verify", async (request, reply) => {
+    const result = verifyReceiptChain(request.body.receipts);
+    return reply.code(result.valid ? 200 : 400).send(result);
   });
 
   return app;

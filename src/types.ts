@@ -233,7 +233,14 @@ export type SignedReceipt = {
   previous_receipt_hash?: string;
   signature: {
     alg: "Ed25519";
-    kid: "constraint-net-dev-2026-04";
+    kid: string;
     value: string;
   };
+};
+
+export type ReceiptVerificationResult = {
+  valid: boolean;
+  receipt_count: number;
+  chain: string[];
+  errors: ValidationIssue[];
 };

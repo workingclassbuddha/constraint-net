@@ -4,7 +4,8 @@ import { wellKnownActionsUrl } from "../src/discovery.js";
 import { soundmartManifest } from "../src/examples/soundmartManifest.js";
 import { createMemoryStore } from "../src/memoryStore.js";
 import { planCoherentPath } from "../src/planner.js";
-import { createSignedReceipt, verifyReceipt } from "../src/receipts.js";
+import { createSignedReceipt, receiptHash, verifyReceipt } from "../src/receipts.js";
+import { verifyReceiptChain } from "../src/receiptVerification.js";
 import { decideConfirmation, executePreflight, preflightAction } from "../src/runtime.js";
 import { validateManifest } from "../src/validator.js";
 
@@ -332,6 +333,27 @@ describe("signed receipts", () => {
 
     expect(receipt.signature.alg).toBe("Ed25519");
     expect(verifyReceipt(receipt)).toBe(true);
+  });
+
+  it("verifies a receipt chain without process-local state", () => {
+    const intent = createSignedReceipt({
+      type: "intent",
+      subject: { action_id: "act_1", manifest_digest: "sha256-demo" },
+      hashes: { input_sha256: "sha256-input", policy_decision_sha256: "sha256-policy" },
+      state: { status: "preflighted" }
+    });
+    const execution = createSignedReceipt({
+      type: "execution",
+      subject: { action_id: "act_1", execution_id: "exec_1", manifest_digest: "sha256-demo" },
+      hashes: { input_sha256: "sha256-input", provider_response_sha256: "sha256-response" },
+      state: { status: "succeeded" },
+      previous_receipt_hash: receiptHash(intent)
+    });
+
+    const result = verifyReceiptChain([intent, execution]);
+
+    expect(result.valid).toBe(true);
+    expect(result.chain).toEqual([intent.receipt_id, execution.receipt_id]);
   });
 });
 
