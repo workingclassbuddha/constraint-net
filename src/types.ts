@@ -1,5 +1,11 @@
 export type RiskTier = 0 | 1 | 2;
 
+export type ValidationIssue = {
+  path: string;
+  code: string;
+  message: string;
+};
+
 export type JsonSchema = {
   type?: string;
   required?: string[];
@@ -32,12 +38,29 @@ export type ConstraintManifest = {
   sequence: number;
   status: "active" | "deprecated" | "suspended" | "revoked";
   domain_verification: Record<string, unknown>;
-  key_discovery: Record<string, unknown>;
+  key_discovery: {
+    jwks_uri?: string;
+    signing_algorithms?: string[];
+    active_kids?: string[];
+    public_keys?: ManifestPublicKey[];
+  };
   links: Record<string, unknown>;
   indexing: Record<string, unknown>;
   policies: Record<string, unknown>;
   actions: ConstraintAction[];
-  signatures: Array<Record<string, string>>;
+  signatures: ManifestSignature[];
+};
+
+export type ManifestSignature = {
+  alg: "Ed25519";
+  kid: string;
+  signature: string;
+};
+
+export type ManifestPublicKey = {
+  kid: string;
+  alg: "Ed25519";
+  public_key_pem: string;
 };
 
 export type ConstraintAction = {

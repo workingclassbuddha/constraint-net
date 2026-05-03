@@ -30,6 +30,57 @@ describe("manifest validation", () => {
       })
     );
   });
+
+  it("rejects expired active manifests", () => {
+    const manifest = structuredClone(soundmartManifest);
+    manifest.expires_at = "2026-01-01T00:00:00.000Z";
+
+    const result = validateManifest(manifest, { now: new Date("2026-05-02T00:00:00.000Z") });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: "manifest_expired",
+        path: "$.expires_at"
+      })
+    );
+  });
+
+  it("rejects revoked manifests", () => {
+    const manifest = structuredClone(soundmartManifest);
+    manifest.status = "revoked";
+
+    const result = validateManifest(manifest);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: "manifest_revoked",
+        path: "$.status"
+      })
+    );
+  });
+
+  it("rejects manifests with invalid signatures", () => {
+    const manifest = structuredClone(soundmartManifest);
+    manifest.signatures = [
+      {
+        alg: "Ed25519",
+        kid: "soundmart-demo-2026-04",
+        signature: "invalid"
+      }
+    ];
+
+    const result = validateManifest(manifest);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: "manifest_signature_invalid",
+        path: "$.signatures[0]"
+      })
+    );
+  });
 });
 
 describe("coherence planning", () => {
