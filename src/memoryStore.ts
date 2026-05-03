@@ -20,10 +20,16 @@ export function createMemoryStore() {
   let latestDigest = "";
 
   return {
-    ingestManifest(manifest: ConstraintManifest): StoredManifest {
+    ingestManifest(manifest: ConstraintManifest, metadata: Partial<StoredManifest> = {}): StoredManifest {
       const digest = sha256(manifest);
       latestDigest = digest;
-      const stored = { digest, manifest };
+      const stored = {
+        digest,
+        manifest,
+        source_url: metadata.source_url,
+        discovered_at: metadata.discovered_at ?? new Date().toISOString(),
+        trust_status: metadata.trust_status ?? "trusted"
+      };
       manifests.set(digest, stored);
 
       for (const action of manifest.actions) {

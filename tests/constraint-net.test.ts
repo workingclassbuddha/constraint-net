@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/app.js";
+import { wellKnownActionsUrl } from "../src/discovery.js";
 import { soundmartManifest } from "../src/examples/soundmartManifest.js";
 import { createMemoryStore } from "../src/memoryStore.js";
 import { planCoherentPath } from "../src/planner.js";
@@ -105,6 +106,39 @@ describe("coherence planning", () => {
     ]);
     expect(path.coherence_score).toBeGreaterThan(0.8);
     expect(path.why_coherent).toContain("Checks eligibility before side effects");
+  });
+});
+
+describe("manifest discovery", () => {
+  it("derives the well-known actions URL from a publisher domain", () => {
+    expect(wellKnownActionsUrl("soundmart.example")).toBe(
+      "https://soundmart.example/.well-known/constraint-net/actions.json"
+    );
+  });
+
+  it("ingests a manifest URL through the API", async () => {
+    const server = buildServer({
+      store: createMemoryStore(),
+      fetchManifest: async () => soundmartManifest
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/manifests/ingest-url",
+      payload: {
+        url: "https://soundmart.example/.well-known/constraint-net/actions.json"
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      status: "manifest_ingested",
+      source_url: "https://soundmart.example/.well-known/constraint-net/actions.json",
+      publisher_domain: "soundmart.example",
+      action_count: 3
+    });
+
+    await server.close();
   });
 });
 

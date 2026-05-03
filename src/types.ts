@@ -118,8 +118,20 @@ export type ConstraintExecutionBinding = {
 
 export type StoredManifest = {
   digest: string;
+  source_url?: string;
+  discovered_at?: string;
+  trust_status: ManifestTrustStatus;
   manifest: ConstraintManifest;
 };
+
+export type ManifestTrustStatus =
+  | "trusted"
+  | "unsigned"
+  | "signature_invalid"
+  | "expired"
+  | "not_yet_valid"
+  | "revoked"
+  | "unsupported_version";
 
 export type StoredAction = ConstraintAction & {
   manifest_digest: string;
