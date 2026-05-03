@@ -122,6 +122,11 @@ const unsignedSoundmartManifest: Omit<ConstraintManifest, "signatures"> = {
           timeout_ms: 3000
         }
       ],
+      planning: {
+        intent_tags: ["return", "eligibility", "refund", "headphones"],
+        requires: ["order_id", "item_id"],
+        produces: ["eligible", "returnable_item", "refund_amount", "free_pickup_available"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"
@@ -193,6 +198,12 @@ const unsignedSoundmartManifest: Omit<ConstraintManifest, "signatures"> = {
           }
         }
       ],
+      planning: {
+        intent_tags: ["return", "create", "refund"],
+        requires: ["order_id", "item_id", "reason", "eligible"],
+        produces: ["return_id", "refund_amount", "cancel_until"],
+        after: ["return.check_eligibility"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"
@@ -263,6 +274,12 @@ const unsignedSoundmartManifest: Omit<ConstraintManifest, "signatures"> = {
           }
         }
       ],
+      planning: {
+        intent_tags: ["pickup", "schedule", "free", "fastest"],
+        requires: ["return_id", "free_pickup_available", "pickup_window"],
+        produces: ["pickup_id", "pickup_window", "cancel_until"],
+        after: ["return.create"]
+      },
       terms: {
         terms_url: "https://soundmart.example/terms",
         privacy_url: "https://soundmart.example/privacy"

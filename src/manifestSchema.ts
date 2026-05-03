@@ -130,6 +130,17 @@ export const actionsManifestSchema = {
               }
             }
           },
+          planning: {
+            type: "object",
+            required: ["intent_tags", "requires", "produces"],
+            additionalProperties: false,
+            properties: {
+              intent_tags: { type: "array", items: { type: "string" } },
+              requires: { type: "array", items: { type: "string" } },
+              produces: { type: "array", items: { type: "string" } },
+              after: { type: "array", items: { type: "string" } }
+            }
+          },
           terms: {
             type: "object",
             required: ["terms_url", "privacy_url"],

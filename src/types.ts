@@ -98,10 +98,18 @@ export type ConstraintAction = {
     cancel_until_policy?: string;
   };
   execution: ConstraintExecutionBinding[];
+  planning?: ActionPlanningMetadata;
   terms: {
     terms_url: string;
     privacy_url: string;
   };
+};
+
+export type ActionPlanningMetadata = {
+  intent_tags: string[];
+  requires: string[];
+  produces: string[];
+  after?: string[];
 };
 
 export type ConstraintExecutionBinding = {
@@ -145,6 +153,7 @@ export type SearchQuery = {
     risk_tiers_allowed?: RiskTier[];
     requires_reversible?: boolean;
   };
+  available_inputs?: Record<string, unknown>;
 };
 
 export type PlannedStep = {
@@ -153,6 +162,8 @@ export type PlannedStep = {
   manifest_digest: string;
   risk_tier: RiskTier;
   confirmation_required: boolean;
+  requires: string[];
+  produces: string[];
 };
 
 export type PlannedPath = {

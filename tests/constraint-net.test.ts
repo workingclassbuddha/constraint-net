@@ -107,6 +107,74 @@ describe("coherence planning", () => {
     expect(path.coherence_score).toBeGreaterThan(0.8);
     expect(path.why_coherent).toContain("Checks eligibility before side effects");
   });
+
+  it("plans generic capability paths from action planning metadata", () => {
+    const repairManifest = structuredClone(soundmartManifest);
+    repairManifest.manifest_id = "urn:constraint-manifest:fixco.example:v1";
+    repairManifest.publisher.primary_domain = "fixco.example";
+    repairManifest.publisher.display_name = "FixCo";
+    repairManifest.actions = [
+      {
+        ...repairManifest.actions[0],
+        id: "urn:action:fixco.example:device.diagnose:v1",
+        stable_id: "device.diagnose",
+        title: "Diagnose device",
+        machine_description: "Diagnose whether a device is eligible for repair.",
+        risk: { tier: 1, side_effect: "none", data_sensitivity: "device_private" },
+        input_schema: {
+          type: "object",
+          required: ["device_id"],
+          additionalProperties: false,
+          properties: { device_id: { type: "string", minLength: 1 } }
+        },
+        planning: {
+          intent_tags: ["repair", "diagnose", "device"],
+          requires: ["device_id"],
+          produces: ["diagnosis_id", "repair_eligible"]
+        }
+      },
+      {
+        ...repairManifest.actions[1],
+        id: "urn:action:fixco.example:repair.create:v1",
+        stable_id: "repair.create",
+        title: "Create repair",
+        machine_description: "Create a reversible repair order after diagnosis.",
+        risk: { tier: 2, side_effect: "repair_created", data_sensitivity: "device_private" },
+        input_schema: {
+          type: "object",
+          required: ["diagnosis_id"],
+          additionalProperties: false,
+          properties: { diagnosis_id: { type: "string", minLength: 1 } }
+        },
+        planning: {
+          intent_tags: ["repair", "create", "device"],
+          requires: ["diagnosis_id"],
+          produces: ["repair_id"],
+          after: ["device.diagnose"]
+        }
+      }
+    ];
+
+    const store = createMemoryStore();
+    store.ingestManifest(repairManifest);
+
+    const path = planCoherentPath(store, {
+      goal: "Repair my device with FixCo",
+      constraints: {
+        merchant: "fixco.example",
+        risk_tiers_allowed: [0, 1, 2],
+        requires_reversible: true
+      },
+      available_inputs: {
+        device_id: "dev_123"
+      }
+    });
+
+    expect(path.status).toBe("coherent_path_found");
+    expect(path.steps.map((step) => step.stable_id)).toEqual(["device.diagnose", "repair.create"]);
+    expect(path.steps[0].produces).toContain("diagnosis_id");
+    expect(path.steps[1].requires).toContain("diagnosis_id");
+  });
 });
 
 describe("manifest discovery", () => {

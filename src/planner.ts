@@ -1,27 +1,15 @@
+import { orderActionsByDependencies, producedFields, requiredFields, selectCandidateActions } from "./capabilityGraph.js";
+import { publicId } from "./hash.js";
 import type { MemoryStore } from "./memoryStore.js";
 import type { PlannedPath, SearchQuery, StoredAction } from "./types.js";
 
-const RETURN_PICKUP_PATH = ["return.check_eligibility", "return.create", "pickup.schedule"];
-
 export function planCoherentPath(store: MemoryStore, query: SearchQuery): PlannedPath {
-  const actions = store.listActions();
-  const merchant = query.constraints.merchant;
-  const riskTiers = new Set(query.constraints.risk_tiers_allowed ?? [0, 1, 2]);
+  const candidates = selectCandidateActions(store.listActions(), query);
+  const ordered = orderActionsByDependencies(candidates, query);
 
-  const pathActions = RETURN_PICKUP_PATH
-    .map((stableId) => actions.find((action) => action.stable_id === stableId))
-    .filter((action): action is StoredAction => Boolean(action));
-
-  const eligible = pathActions.filter((action) => {
-    if (merchant && action.publisher_domain !== merchant) return false;
-    if (!riskTiers.has(action.risk.tier)) return false;
-    if (query.constraints.requires_reversible && action.risk.tier === 2 && !action.reversibility.reversible) return false;
-    return true;
-  });
-
-  if (eligible.length !== RETURN_PICKUP_PATH.length) {
+  if (ordered.length === 0 || ordered.length !== candidates.length) {
     return {
-      status: "no_policy_allowed_path",
+      status: ordered.length === 0 ? "no_policy_allowed_path" : "missing_required_inputs",
       path_id: "path_none",
       coherence_score: 0,
       steps: [],
@@ -29,40 +17,46 @@ export function planCoherentPath(store: MemoryStore, query: SearchQuery): Planne
     };
   }
 
-  const coherenceScore = scorePath(eligible, query);
+  const coherenceScore = scorePath(ordered, query);
 
   return {
     status: "coherent_path_found",
-    path_id: "path_soundmart_return_pickup",
+    path_id: publicId("path", {
+      goal: query.goal,
+      steps: ordered.map((action) => action.id)
+    }),
     coherence_score: coherenceScore,
-    steps: eligible.map((action) => ({
+    steps: ordered.map((action) => ({
       action_id: action.id,
       stable_id: action.stable_id,
       manifest_digest: action.manifest_digest,
       risk_tier: action.risk.tier,
-      confirmation_required: action.confirmation.required
+      confirmation_required: action.confirmation.required,
+      requires: requiredFields(action),
+      produces: producedFields(action)
     })),
     why_coherent: [
-      "Matches merchant",
+      query.constraints.merchant ? `Matches publisher domain ${query.constraints.merchant}` : "Matches publisher domain",
       "Checks eligibility before side effects",
       "Return creation precedes pickup scheduling",
-      "Tier 2 steps require confirmation",
-      "Both side effects are reversible",
-      "Every step can produce receipts"
+      "All required inputs are available or produced by earlier steps",
+      "Side-effectful steps are reversible and require confirmation",
+      "Every side-effectful step requires idempotency",
+      "Manifest is active, signed, and unexpired"
     ]
   };
 }
 
 function scorePath(actions: StoredAction[], query: SearchQuery): number {
   const goal = query.goal.toLowerCase();
-  const intentAlignment = goal.includes("return") && goal.includes("pickup") ? 1 : 0.65;
-  const schemaCompleteness = actions.every((action) => action.input_schema.required?.length) ? 1 : 0.6;
+  const intentAlignment = actions.some((action) => actionMatchesGoal(action, goal)) ? 1 : 0.65;
+  const schemaCompleteness = actions.every((action) => requiredFields(action).length > 0) ? 1 : 0.6;
   const policyConsistency = actions.every((action) => (query.constraints.risk_tiers_allowed ?? [0, 1, 2]).includes(action.risk.tier)) ? 1 : 0;
   const reversibilityConsistency = actions.every((action) => action.risk.tier < 2 || action.reversibility.reversible) ? 1 : 0.4;
   const trustConsistency = actions.every((action) => action.manifest_digest.startsWith("sha256-")) ? 0.95 : 0.4;
-  const temporalConsistency = isOrdered(actions.map((action) => action.stable_id), RETURN_PICKUP_PATH) ? 1 : 0.3;
+  const temporalConsistency = dependenciesSatisfied(actions) ? 1 : 0.3;
   const receiptConsistency = actions.every((action) => action.execution.length > 0) ? 1 : 0.5;
-  const pathSimplicity = actions.length === 3 ? 1 : 0.7;
+  const pathSimplicity = actions.length <= 3 ? 1 : 0.7;
   const contradictionPenalty = actions.some((action) => action.risk.tier === 2 && !action.confirmation.required) ? 1 : 0;
 
   const score =
@@ -79,6 +73,15 @@ function scorePath(actions: StoredAction[], query: SearchQuery): number {
   return Number(score.toFixed(3));
 }
 
-function isOrdered(actual: string[], expected: string[]): boolean {
-  return actual.every((item, index) => item === expected[index]);
+function actionMatchesGoal(action: StoredAction, goal: string): boolean {
+  return (action.planning?.intent_tags ?? []).some((tag) => goal.includes(tag.toLowerCase()));
+}
+
+function dependenciesSatisfied(actions: StoredAction[]): boolean {
+  return actions.every((action, index) => {
+    return (action.planning?.after ?? []).every((stableId) => {
+      const dependencyIndex = actions.findIndex((candidate) => candidate.stable_id === stableId);
+      return dependencyIndex >= 0 && dependencyIndex < index;
+    });
+  });
 }
