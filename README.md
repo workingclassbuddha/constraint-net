@@ -1,5 +1,7 @@
 # Constraint Net
 
+![Constraint Net protocol network](docs/assets/constraint-net-readme-hero.png)
+
 Constraint Net is a coherence-first execution layer for AI agents.
 
 ## Status: Public Alpha
