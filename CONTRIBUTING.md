@@ -1,6 +1,6 @@
 # Contributing
 
-Constraint Net is a protocol-first alpha. Contributions are most useful when they improve safety, reversibility, consent, verification, or developer clarity without turning the MVP into a broad platform rewrite.
+Constraint Net is a protocol-first alpha. Contributions are most useful when they improve safety, reversibility, consent, verification, or developer clarity without turning the alpha into a broad platform rewrite.
 
 ## Setup
 

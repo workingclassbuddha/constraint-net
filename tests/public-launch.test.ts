@@ -18,9 +18,12 @@ describe("public launch readiness", () => {
     const pkg = JSON.parse(read("package.json"));
     const readme = read("README.md");
 
+    expect(pkg.name).toBe("constraint-net");
     expect(pkg.license).toBe("Apache-2.0");
     expect(pkg.description).toContain("agent-safe");
+    expect(pkg.repository.url).toContain("workingclassbuddha/constraint-net");
     expect(readme).toContain("Public Alpha");
+    expect(readme).toContain("internet for agents");
     expect(readme).toContain("not production key custody");
     expect(readme).toContain("mock OpenAPI-backed execution");
   });

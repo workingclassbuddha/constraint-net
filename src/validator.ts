@@ -56,7 +56,7 @@ function riskLintAction(action: ConstraintAction, path: string): ValidationIssue
     issues.push({
       path: `${path}.reversibility.reversible`,
       code: "tier2_reversibility_required",
-      message: "Tier 2 actions must declare a reversible path in the MVP."
+      message: "Tier 2 actions must declare a reversible path."
     });
   }
 

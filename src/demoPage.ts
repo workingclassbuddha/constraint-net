@@ -437,7 +437,7 @@ export function renderDemoPage(): string {
             <div class="statusline">Coherence-first execution for reversible customer-service actions</div>
           </div>
         </div>
-        <div class="health"><span class="dot"></span><span>Local MVP connected to in-memory SoundMart manifest</span></div>
+        <div class="health"><span class="dot"></span><span>Local alpha connected to in-memory SoundMart manifest</span></div>
       </header>
 
       <section class="grid">

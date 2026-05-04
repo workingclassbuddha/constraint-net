@@ -1,10 +1,33 @@
 {
-  "name": "constraint-net-mvp",
-  "description": "Public-alpha protocol gateway for agent-safe discovery, planning, consent, execution, and receipt verification.",
+  "name": "constraint-net",
+  "description": "Open protocol for agent-safe discovery, consent-gated execution, and verifiable receipts.",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/workingclassbuddha/constraint-net.git"
+  },
+  "bugs": {
+    "url": "https://github.com/workingclassbuddha/constraint-net/issues"
+  },
+  "homepage": "https://github.com/workingclassbuddha/constraint-net#readme",
+  "keywords": [
+    "ai-agents",
+    "agent-protocol",
+    "agent-safety",
+    "consent",
+    "idempotency",
+    "openapi",
+    "protocol",
+    "receipts",
+    "typescript",
+    "well-known"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@10.32.1",
   "bin": {
     "constraint-net": "./src/cli.ts"

@@ -2,7 +2,13 @@
 
 ![Constraint Net protocol network](docs/assets/constraint-net-readme-hero.png)
 
-Constraint Net is a coherence-first execution layer for AI agents.
+[![CI](https://github.com/workingclassbuddha/constraint-net/actions/workflows/ci.yml/badge.svg)](https://github.com/workingclassbuddha/constraint-net/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+![Status: Public Alpha](https://img.shields.io/badge/status-public%20alpha-2ea043)
+
+Constraint Net is an open protocol and reference gateway for agent-safe action discovery, planning, consent-gated execution, and verifiable receipts.
+
+It is a public-alpha foundation for the internet for agents: publishers expose signed capabilities at `.well-known/constraint-net/actions.json`; agents ingest those manifests, plan across a capability graph, pause for human consent when risk requires it, execute with idempotency keys, and return signed receipt chains that can be verified outside the running process.
 
 ## Status: Public Alpha
 
@@ -10,13 +16,13 @@ Constraint Net is ready for public protocol review, local experiments, and small
 
 The current gateway uses in-memory state, a public development signing key, and mock OpenAPI-backed execution. Those choices keep the alpha easy to run and verify locally; production deployments must replace them with durable storage, publisher-owned keys, real OpenAPI operation resolution, monitoring, and operational controls.
 
-This MVP demonstrates a safe, reversible customer-service workflow:
+This alpha demonstrates a safe, reversible customer-service workflow:
 
 ```text
 return.check_eligibility -> return.create -> pickup.schedule
 ```
 
-The prototype includes:
+The repository includes:
 
 - `actions.json`-style manifest schema and validation.
 - `.well-known/constraint-net/actions.json` manifest discovery.
