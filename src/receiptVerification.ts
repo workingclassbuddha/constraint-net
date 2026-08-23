@@ -4,6 +4,14 @@ import type { ReceiptVerificationResult, SignedReceipt, ValidationIssue } from "
 export function verifyReceiptChain(receipts: SignedReceipt[]): ReceiptVerificationResult {
   const errors: ValidationIssue[] = [];
 
+  if (receipts.length === 0) {
+    errors.push({
+      path: "$",
+      code: "receipt_chain_empty",
+      message: "Receipt chain must contain at least one receipt."
+    });
+  }
+
   receipts.forEach((receipt, index) => {
     if (!verifyReceipt(receipt)) {
       errors.push({
