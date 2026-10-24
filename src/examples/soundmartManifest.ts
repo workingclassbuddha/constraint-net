@@ -2,12 +2,15 @@ import { DEV_PUBLIC_KEY_PEM } from "../keys.js";
 import { signManifest } from "../trust.js";
 import type { ConstraintManifest } from "../types.js";
 
+// The fixture is signed when loaded so it remains valid for real demos without
+// weakening production manifest-expiry validation. Never use this dev key in production.
+const demoNow = Date.now();
 const unsignedSoundmartManifest: Omit<ConstraintManifest, "signatures"> = {
   $schema: "https://spec.constraint.net/schemas/actions-manifest-0.1.json",
   actions_manifest_version: "0.1",
   manifest_id: "urn:constraint-manifest:soundmart.example:v1",
-  issued_at: "2026-04-28T00:00:00.000Z",
-  expires_at: "2026-05-05T00:00:00.000Z",
+  issued_at: new Date(demoNow - 60_000).toISOString(),
+  expires_at: new Date(demoNow + 7 * 24 * 60 * 60 * 1000).toISOString(),
   sequence: 1,
   status: "active",
   publisher: {
