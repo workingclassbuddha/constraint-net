@@ -20,16 +20,16 @@ function setup() {
 describe("authorization invariants", () => {
   it("rejects approvals after expiration", () => {
     const { store, preflight } = setup();
-    store.updateConfirmation(preflight.confirmation.id, { expires_at: "2020-01-01T00:00:00.000Z" });
-    expect(decideConfirmation(store, preflight.confirmation.id, "confirm").status).toBe("confirmation_expired");
-    expect(store.getConfirmation(preflight.confirmation.id)?.status).toBe("pending");
+    store.updateConfirmation(preflight.confirmation!.id, { expires_at: "2020-01-01T00:00:00.000Z" });
+    expect(decideConfirmation(store, preflight.confirmation!.id, "confirm").status).toBe("confirmation_expired");
+    expect(store.getConfirmation(preflight.confirmation!.id)?.status).toBe("pending");
   });
 
   it("never reverses a denial", () => {
     const { store, preflight } = setup();
-    expect(decideConfirmation(store, preflight.confirmation.id, "deny").status).toBe("denied");
-    expect(decideConfirmation(store, preflight.confirmation.id, "confirm").status).toBe("confirmation_already_decided");
-    expect(store.getConfirmation(preflight.confirmation.id)?.status).toBe("denied");
+    expect(decideConfirmation(store, preflight.confirmation!.id, "deny").status).toBe("denied");
+    expect(decideConfirmation(store, preflight.confirmation!.id, "confirm").status).toBe("confirmation_already_decided");
+    expect(store.getConfirmation(preflight.confirmation!.id)?.status).toBe("denied");
   });
 
   it("honors the stored preflight even after action metadata changes", () => {
@@ -50,21 +50,21 @@ describe("authorization invariants", () => {
       inputs: { order_id: "ord_other", item_id: "item_headphones", reason: "changed_mind" }
     });
     if (other.status !== "confirmation_required") throw new Error("expected confirmation");
-    decideConfirmation(store, preflight.confirmation.id, "confirm");
+    decideConfirmation(store, preflight.confirmation!.id, "confirm");
     expect(executePreflight(store, {
       preflight_id: other.preflight_id,
-      confirmation_id: preflight.confirmation.id,
+      confirmation_id: preflight.confirmation!.id,
       idempotency_key: "other-preflight"
     }).status).toBe("confirmation_not_satisfied");
   });
 
   it("fails closed if expiry is malformed", () => {
     const { store, preflight } = setup();
-    decideConfirmation(store, preflight.confirmation.id, "confirm");
-    store.updateConfirmation(preflight.confirmation.id, { expires_at: "invalid-date" });
+    decideConfirmation(store, preflight.confirmation!.id, "confirm");
+    store.updateConfirmation(preflight.confirmation!.id, { expires_at: "invalid-date" });
     expect(executePreflight(store, {
       preflight_id: preflight.preflight_id,
-      confirmation_id: preflight.confirmation.id,
+      confirmation_id: preflight.confirmation!.id,
       idempotency_key: "invalid-expiry"
     }).status).toBe("confirmation_expired");
   });
