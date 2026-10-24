@@ -461,7 +461,8 @@ describe("API flow", () => {
   it("searches, preflights, confirms, executes, and returns receipts", async () => {
     const store = createMemoryStore();
     store.ingestManifest(soundmartManifest);
-    const server = buildServer({ store });
+    // The web UI is an explicit local-only demo, not a production identity flow.
+    const server = buildServer({ store, allowInsecureLocalDemo: true });
 
     const searchResponse = await server.inject({
       method: "POST",
