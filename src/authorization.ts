@@ -1,6 +1,21 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 export type ActorTokens = Record<string, string>;
+export type ActorRole = "requester" | "approver";
+export type ActorRoles = Record<string, ActorRole>;
+
+/** Operator roles are server configuration; clients cannot grant themselves a role. */
+export function validateActorRoles(tokens: ActorTokens, roles: ActorRoles): void {
+  for (const actor of Object.keys(tokens)) {
+    if (roles[actor] !== "requester" && roles[actor] !== "approver") {
+      throw new Error("actor_role_required");
+    }
+  }
+  for (const actor of Object.keys(roles)) {
+    if (!(actor in tokens)) throw new Error("actor_role_without_token");
+  }
+}
+
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
