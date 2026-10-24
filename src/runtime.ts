@@ -122,7 +122,7 @@ export function preflightAction(store: MemoryStore, input: PreflightInput, actor
 
 export type ConfirmationDecisionResult =
   | { status: "confirmed" | "denied"; confirmation: Confirmation }
-  | { status: "confirmation_not_found" | "confirmation_expired" | "confirmation_already_decided" | "confirmation_actor_mismatch" };
+  | { status: "confirmation_not_found" | "confirmation_expired" | "confirmation_already_decided" | "confirmation_actor_mismatch" | "self_approval_forbidden" };
 
 export function decideConfirmation(
   store: MemoryStore,
@@ -132,14 +132,18 @@ export function decideConfirmation(
 ): ConfirmationDecisionResult {
   const confirmation = store.getConfirmation(id);
   if (!confirmation) return { status: "confirmation_not_found" };
-  if (confirmation.actor_id !== actorId) return { status: "confirmation_actor_mismatch" };
+  // Only an independent reviewer may approve a request (except unsafe local demo).
+  if (confirmation.actor_id === actorId && actorId !== "local-demo") {
+    return { status: "self_approval_forbidden" };
+  }
   if (confirmation.status !== "pending") return { status: "confirmation_already_decided" };
   const expiry = Date.parse(confirmation.expires_at);
   if (!Number.isFinite(expiry) || expiry <= Date.now()) return { status: "confirmation_expired" };
 
   const updated = store.updateConfirmation(id, {
     status: decision === "confirm" ? "confirmed" : "denied",
-    decided_at: new Date().toISOString()
+    decided_at: new Date().toISOString(),
+    decided_by: actorId
   });
   if (!updated) return { status: "confirmation_not_found" };
   return { status: updated.status as "confirmed" | "denied", confirmation: updated };
@@ -180,9 +184,11 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput, actorI
       confirmation.id !== preflight.confirmation_id ||
       confirmation.action_id !== preflight.action_id ||
       confirmation.manifest_digest !== preflight.manifest_digest ||
-      confirmation.actor_id !== actorId ||
+      confirmation.actor_id !== preflight.actor_id ||
       confirmation.preflight_id !== preflight.id ||
-      confirmation.input_sha256 !== preflight.input_sha256
+      (actorId !== "local-demo" && (!confirmation.decided_by || confirmation.decided_by === actorId)) ||
+      confirmation.input_sha256 !== preflight.input_sha256 ||
+      sha256(confirmation.input_preview) !== preflight.input_sha256
     ) {
       return { status: "confirmation_not_satisfied" as const };
     }
@@ -312,6 +318,7 @@ function buildConfirmation(
     actor_id: actorId,
     preflight_id: preflightId,
     input_sha256: sha256(inputs),
+    input_preview: structuredClone(inputs),
     status: "pending",
     summary: {
       action_path: [action.stable_id],
