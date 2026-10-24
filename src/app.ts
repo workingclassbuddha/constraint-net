@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { actorForAuthorization, validateActorTokens, type ActorTokens } from "./authorization.js";
+import { actorForAuthorization, validateActorTokens, validateActorRoles, type ActorTokens, type ActorRoles, type ActorRole } from "./authorization.js";
 import { renderDemoPage } from "./demoPage.js";
 import { fetchManifestFromUrl, publisherDomainFromManifestUrl } from "./discovery.js";
 import { soundmartManifest } from "./examples/soundmartManifest.js";
@@ -14,6 +14,7 @@ export type BuildServerOptions = {
   store?: MemoryStore;
   fetchManifest?: (url: string) => Promise<ConstraintManifest>;
   actorTokens?: ActorTokens;
+  actorRoles?: ActorRoles;
   /** Only for an explicit loopback demo. Never enable on a public server. */
   allowInsecureLocalDemo?: boolean;
 };
@@ -23,10 +24,23 @@ export function buildServer(options: BuildServerOptions = {}) {
   const fetchManifest = options.fetchManifest ?? fetchManifestFromUrl;
   const actorTokens = options.actorTokens ?? {};
   validateActorTokens(actorTokens);
+  const actorRoles = options.actorRoles ?? {};
+  validateActorRoles(actorTokens, actorRoles);
   const app = Fastify({ logger: false });
-  function actorOrDeny(request: { headers: { authorization?: string } }, reply: { code: (n: number) => { send: (value: unknown) => unknown } }) {
+  function actorOrDeny(
+    request: { headers: { authorization?: string } },
+    reply: { code: (n: number) => { send: (value: unknown) => unknown } },
+    requiredRole: ActorRole
+  ) {
     const actor = actorForAuthorization(request.headers.authorization, actorTokens, options.allowInsecureLocalDemo);
-    if (!actor) reply.code(401).send({ status: "operator_auth_required" });
+    if (!actor) {
+      reply.code(401).send({ status: "operator_auth_required" });
+      return undefined;
+    }
+    if (!(actor === "local-demo" && options.allowInsecureLocalDemo) && actorRoles[actor] !== requiredRole) {
+      reply.code(403).send({ status: "operator_role_forbidden" });
+      return undefined;
+    }
     return actor;
   }
 
@@ -127,7 +141,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post<{
     Body: Parameters<typeof preflightAction>[1];
   }>("/v1/executions/preflight", async (request, reply) => {
-    const actor = actorOrDeny(request, reply);
+    const actor = actorOrDeny(request, reply, "requester");
     if (!actor) return;
     const result = preflightAction(store, request.body, actor);
     if (result.status === "action_not_found") return reply.code(404).send(result);
@@ -141,11 +155,11 @@ export function buildServer(options: BuildServerOptions = {}) {
     Params: { id: string };
     Body: { decision: "confirm" | "deny" };
   }>("/v1/confirmations/:id/decision", async (request, reply) => {
-    const actor = actorOrDeny(request, reply);
+    const actor = actorOrDeny(request, reply, "approver");
     if (!actor) return;
     const result = decideConfirmation(store, request.params.id, request.body.decision, actor);
     if ("confirmation" in result) return result.confirmation;
-    if (result.status === "confirmation_actor_mismatch") return reply.code(403).send(result);
+    if (result.status === "confirmation_actor_mismatch" || result.status === "self_approval_forbidden") return reply.code(403).send(result);
     if (result.status === "confirmation_not_found") return reply.code(404).send(result);
     if (result.status === "confirmation_expired") return reply.code(410).send(result);
     return reply.code(409).send(result);
@@ -154,7 +168,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post<{
     Body: Parameters<typeof executePreflight>[1];
   }>("/v1/executions", async (request, reply) => {
-    const actor = actorOrDeny(request, reply);
+    const actor = actorOrDeny(request, reply, "requester");
     if (!actor) return;
     const result = executePreflight(store, request.body, actor);
     if (result.status === "approval_actor_mismatch") return reply.code(403).send(result);
