@@ -129,10 +129,10 @@ export function buildServer(options: BuildServerOptions = {}) {
     Body: { decision: "confirm" | "deny" };
   }>("/v1/confirmations/:id/decision", async (request, reply) => {
     const result = decideConfirmation(store, request.params.id, request.body.decision);
+    if ("confirmation" in result) return result.confirmation;
     if (result.status === "confirmation_not_found") return reply.code(404).send(result);
     if (result.status === "confirmation_expired") return reply.code(410).send(result);
-    if (result.status === "confirmation_already_decided") return reply.code(409).send(result);
-    return result.confirmation;
+    return reply.code(409).send(result);
   });
 
   app.post<{
