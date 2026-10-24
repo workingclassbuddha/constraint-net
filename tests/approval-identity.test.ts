@@ -79,6 +79,7 @@ describe("approval API operator identity", () => {
   it("rejects reused tokens and never trusts a client-supplied actor header", () => {
     expect(() => validateActorTokens({ alice: tokenA, bob: tokenA })).toThrow("duplicate_actor_token");
     expect(() => validateActorTokens({ alice: "weak" })).toThrow("actor_token_too_short");
+    expect(() => validateActorTokens({ "local-demo": tokenA })).toThrow("reserved_demo_actor");
     expect(actorForAuthorization(`Bearer ${tokenA}`, tokens)).toBe("alice");
     expect(actorForAuthorization("Bearer invalid", tokens)).toBeUndefined();
     expect(actorForAuthorization(undefined, tokens)).toBeUndefined();
