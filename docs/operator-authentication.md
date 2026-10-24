@@ -21,12 +21,19 @@ are developer-provisioned shared secrets, **not** a full identity management sys
 Supply random secrets through the server environment. Never commit them:
 
 ```bash
-export CNET_ACTOR_TOKENS_JSON='{"operator1":"REPLACE_WITH_A_UNIQUE_RANDOM_32_PLUS_CHAR_SECRET"}'
+export CNET_ACTOR_TOKENS_JSON='{"agent1":"REPLACE_WITH_UNIQUE_RANDOM_REQUESTER_SECRET","reviewer1":"REPLACE_WITH_DIFFERENT_RANDOM_APPROVER_SECRET"}'
+export CNET_ACTOR_ROLES_JSON='{"agent1":"requester","reviewer1":"approver"}'
 pnpm dev
 ```
 
-Then add `Authorization: Bearer YOUR_SECRET` to each of the three request
-types above. A real deployment would need TLS, a secrets manager, actor roles,
+Use the **requester** token for preflight and execution requests. A **different
+approver** token is required for `POST /v1/confirmations/:id/decision`.
+Requester tokens cannot approve, and approver tokens cannot execute.
+Approved confirmation records retain `decided_by` and the exact
+`input_preview` whose digest was approved.
+
+Both role and token configuration are required. Server start fails if a
+configured token lacks a role, or an unknown actor is given a role. A real deployment would need TLS, a secrets manager, actor roles,
 key rotation, audit logs, revocation, rate limiting and durable state. Do not
 place tokens in a URL, browser localStorage, or a public page.
 
@@ -46,8 +53,10 @@ mode as real custody or authorization.
 
 ## Security limits still outstanding
 
-- An actor token is a shared secret, not verified human presence; anyone who
-  steals it can act as that operator.
+- An approver token is a shared secret, not proof of a real human approving.
+  A stolen approver token can approve independently from a stolen requester token.
+  Production needs interactive trusted identity, explicit human presence and stronger
+  access-control lifecycle protections.
 - Signed proof generation currently relies on development keys.
 - Stored action and confirmation state is not transactional or durable. Check
   race/restart semantics before connecting a real execution provider.
