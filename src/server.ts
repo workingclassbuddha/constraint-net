@@ -1,5 +1,5 @@
 import { buildServer } from "./app.js";
-import type { ActorTokens } from "./authorization.js";
+import type { ActorTokens, ActorRoles } from "./authorization.js";
 
 const port = Number(process.env.PORT ?? 4173);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -18,7 +18,16 @@ if (process.env.CNET_ACTOR_TOKENS_JSON) {
   actorTokens = parsed as ActorTokens;
 }
 
-const app = buildServer({ actorTokens, allowInsecureLocalDemo });
+let actorRoles: ActorRoles = {};
+if (process.env.CNET_ACTOR_ROLES_JSON) {
+  const parsed: unknown = JSON.parse(process.env.CNET_ACTOR_ROLES_JSON);
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw new Error("CNET_ACTOR_ROLES_JSON must map actor IDs to requester or approver");
+  }
+  actorRoles = parsed as ActorRoles;
+}
+
+const app = buildServer({ actorTokens, actorRoles, allowInsecureLocalDemo });
 await app.listen({ port, host });
 
 console.log(`Constraint Net server at http://${host}:${port} (approval auth: ${allowInsecureLocalDemo ? "UNSAFE LOCAL DEMO" : "token-required"})`);

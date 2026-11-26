@@ -1,6 +1,21 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 export type ActorTokens = Record<string, string>;
+export type ActorRole = "requester" | "approver";
+export type ActorRoles = Record<string, ActorRole>;
+
+/** Operator roles are server configuration; clients cannot grant themselves a role. */
+export function validateActorRoles(tokens: ActorTokens, roles: ActorRoles): void {
+  for (const actor of Object.keys(tokens)) {
+    if (roles[actor] !== "requester" && roles[actor] !== "approver") {
+      throw new Error("actor_role_required");
+    }
+  }
+  for (const actor of Object.keys(roles)) {
+    if (!(actor in tokens)) throw new Error("actor_role_without_token");
+  }
+}
+
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -9,6 +24,7 @@ function digest(value: string): Buffer {
 export function validateActorTokens(tokens: ActorTokens): void {
   const seen = new Set<string>();
   for (const [actor, token] of Object.entries(tokens)) {
+    if (actor === "local-demo") throw new Error("reserved_demo_actor");
     if (!/^[A-Za-z0-9_.-]{1,80}$/.test(actor)) throw new Error("invalid_actor_id");
     if (typeof token !== "string" || token.length < 24) throw new Error("actor_token_too_short");
     const fingerprint = digest(token).toString("hex");

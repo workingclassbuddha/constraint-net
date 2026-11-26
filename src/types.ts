@@ -181,6 +181,9 @@ export type Confirmation = {
   actor_id: string;
   preflight_id: string;
   input_sha256: string;
+  decided_by?: string;
+  /** Exactly the input fields presented to the approver. */
+  input_preview: Record<string, unknown>;
   status: "pending" | "confirmed" | "denied";
   summary: {
     action_path: string[];

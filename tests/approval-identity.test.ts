@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/app.js";
 import { soundmartManifest } from "../src/examples/soundmartManifest.js";
 import { createMemoryStore } from "../src/memoryStore.js";
-import { actorForAuthorization, validateActorTokens } from "../src/authorization.js";
+import { actorForAuthorization, validateActorTokens, validateActorRoles } from "../src/authorization.js";
 
 const tokenA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const tokenB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -33,10 +33,10 @@ describe("approval API operator identity", () => {
     await server.close();
   });
 
-  it("binds approval to the same authenticated principal for every step", async () => {
+  it("requires separate requester and approver identities", async () => {
     const store = createMemoryStore();
     store.ingestManifest(soundmartManifest);
-    const server = buildServer({ store, actorTokens: tokens });
+    const server = buildServer({ store, actorTokens: tokens, actorRoles: { alice: "requester", bob: "approver" } });
     const action = store.getActionByStableId("return.create");
     if (!action) throw new Error("missing action");
     const preflightResponse = await server.inject({
@@ -52,14 +52,16 @@ describe("approval API operator identity", () => {
     expect(preflight.status).toBe("confirmation_required");
     const wrongApproval = await server.inject({
       method: "POST", url: `/v1/confirmations/${preflight.confirmation.id}/decision`,
-      headers: authorization(tokenB), payload: { decision: "confirm" }
+      headers: authorization(tokenA), payload: { decision: "confirm" }
     });
     expect(wrongApproval.statusCode).toBe(403);
     const rightApproval = await server.inject({
       method: "POST", url: `/v1/confirmations/${preflight.confirmation.id}/decision`,
-      headers: authorization(tokenA), payload: { decision: "confirm" }
+      headers: authorization(tokenB), payload: { decision: "confirm" }
     });
     expect(rightApproval.statusCode).toBe(200);
+    expect(rightApproval.json().decided_by).toBe("bob");
+    expect(rightApproval.json().input_preview.order_id).toBe("order1");
     const wrongExecution = await server.inject({
       method: "POST", url: "/v1/executions", headers: authorization(tokenB),
       payload: { preflight_id: preflight.preflight_id, confirmation_id: preflight.confirmation.id, idempotency_key: "id1" }
@@ -77,6 +79,7 @@ describe("approval API operator identity", () => {
   it("rejects reused tokens and never trusts a client-supplied actor header", () => {
     expect(() => validateActorTokens({ alice: tokenA, bob: tokenA })).toThrow("duplicate_actor_token");
     expect(() => validateActorTokens({ alice: "weak" })).toThrow("actor_token_too_short");
+    expect(() => validateActorTokens({ "local-demo": tokenA })).toThrow("reserved_demo_actor");
     expect(actorForAuthorization(`Bearer ${tokenA}`, tokens)).toBe("alice");
     expect(actorForAuthorization("Bearer invalid", tokens)).toBeUndefined();
     expect(actorForAuthorization(undefined, tokens)).toBeUndefined();
@@ -94,7 +97,7 @@ describe("approval API operator identity", () => {
     }, "alice");
     if (result.status !== "confirmation_required" || !result.confirmation) throw new Error("expected confirmation");
     inputs.order_id = "altered_after_preflight";
-    decideConfirmation(store, result.confirmation.id, "confirm", "alice");
+    decideConfirmation(store, result.confirmation.id, "confirm", "bob");
     const execution = executePreflight(store, {
       preflight_id: result.preflight_id, confirmation_id: result.confirmation.id, idempotency_key: "id1"
     }, "alice");
@@ -102,3 +105,16 @@ describe("approval API operator identity", () => {
     if (execution.status === "succeeded") expect((execution.result as { return_id: string }).return_id).toBe("ret_order1_item1");
   });
 });
+
+describe("operator role configuration", () => {
+  it("fails closed on missing or invalid roles", () => {
+    const { validateActorRoles } = requireRoleHelpers();
+    expect(() => validateActorRoles(tokens, {})).toThrow("actor_role_required");
+    expect(() => validateActorRoles(tokens, { alice: "requester", bob: "requester", ghost: "approver" })).toThrow("actor_role_without_token");
+    expect(() => buildServer({ actorTokens: tokens })).toThrow("actor_role_required");
+  });
+});
+
+function requireRoleHelpers() {
+  return { validateActorRoles };
+}
