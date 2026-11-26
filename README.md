@@ -117,3 +117,9 @@ The executions return signed receipt IDs for intent, consent, and execution.
 - Verifiable: receipts are signed and can be checked outside the running process.
 - Alpha only: the committed development issuer key is intentionally public and only supports reproducible examples.
 - Local only: manifests, confirmations, executions, and receipts are stored in memory in this gateway.
+
+## Development and collaboration
+
+Review the [protocol overview](docs/protocol.md) and [launch checklist](docs/launch-checklist.md) before proposing integrations. The [issue tracker](https://github.com/workingclassbuddha/constraint-net/issues) records outstanding implementation and verification work. In particular, durable atomic execution remains a [tracked requirement](https://github.com/workingclassbuddha/constraint-net/issues/5); the demo must not be treated as a production side-effect gateway.
+
+[Open Compute Protocol](https://github.com/workingclassbuddha/open-compute-protocol) is a separate distributed-compute project. The protocols are independently usable; no integration is implied.
