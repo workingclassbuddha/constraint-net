@@ -34,7 +34,8 @@
   },
   "scripts": {
     "cli": "tsx src/cli.ts",
-    "test": "vitest run",
+    "test": "tsx scripts/write-demo-manifest.ts && vitest run",
+    "demo:manifest": "tsx scripts/write-demo-manifest.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/server.ts",

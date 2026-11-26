@@ -49,6 +49,18 @@ Open:
 http://127.0.0.1:4173
 ```
 
+## Demo manifest expiration
+
+The SoundMart example is signed with a **public development key** and has a short lifetime.
+Before running the CLI examples with `examples/soundmart/actions.json`, regenerate it locally:
+
+```bash
+pnpm demo:manifest
+```
+
+The runtime's built-in demo manifest is also generated with fresh dates. Production validation
+**still rejects expired manifests**; do not reuse the development key or trust the demo publisher.
+
 ## Verify
 
 ```bash

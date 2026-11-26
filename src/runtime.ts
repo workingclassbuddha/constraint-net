@@ -60,7 +60,7 @@ export function preflightAction(store: MemoryStore, input: PreflightInput): Pref
       input_sha256: sha256(input.inputs),
       policy_decision_sha256: sha256({
         action_id: action.id,
-        decision: action.confirmation.required ? "confirmation_required" : "ready"
+        decision: action.risk.tier === 2 || action.confirmation.required ? "confirmation_required" : "ready"
       })
     },
     state: {
@@ -116,13 +116,27 @@ export function preflightAction(store: MemoryStore, input: PreflightInput): Pref
   };
 }
 
-export function decideConfirmation(store: MemoryStore, id: string, decision: "confirm" | "deny"): Confirmation | undefined {
+export type ConfirmationDecisionResult =
+  | { status: "confirmed" | "denied"; confirmation: Confirmation }
+  | { status: "confirmation_not_found" | "confirmation_expired" | "confirmation_already_decided" };
+
+export function decideConfirmation(
+  store: MemoryStore,
+  id: string,
+  decision: "confirm" | "deny"
+): ConfirmationDecisionResult {
   const confirmation = store.getConfirmation(id);
-  if (!confirmation) return undefined;
-  return store.updateConfirmation(id, {
+  if (!confirmation) return { status: "confirmation_not_found" };
+  if (confirmation.status !== "pending") return { status: "confirmation_already_decided" };
+  const expiry = Date.parse(confirmation.expires_at);
+  if (!Number.isFinite(expiry) || expiry <= Date.now()) return { status: "confirmation_expired" };
+
+  const updated = store.updateConfirmation(id, {
     status: decision === "confirm" ? "confirmed" : "denied",
     decided_at: new Date().toISOString()
   });
+  if (!updated) return { status: "confirmation_not_found" };
+  return { status: updated.status as "confirmed" | "denied", confirmation: updated };
 }
 
 export function executePreflight(store: MemoryStore, input: ExecuteInput) {
@@ -136,10 +150,30 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput) {
     return { status: "action_not_found" as const };
   }
 
+  // Recheck the stored preflight decision and the action's risk tier at execution.
+  // The confirmation.required flag alone is mutable and must never downgrade a Tier 2 action.
+  if (preflight.manifest_digest !== action.manifest_digest) {
+    return { status: "manifest_digest_mismatch" as const };
+  }
+  const requiresConfirmation =
+    preflight.status === "confirmation_required" ||
+    action.risk.tier === 2 ||
+    action.confirmation.required;
+
   const confirmation = input.confirmation_id ? store.getConfirmation(input.confirmation_id) : undefined;
-  if (action.confirmation.required) {
-    if (!confirmation || confirmation.status !== "confirmed" || confirmation.id !== preflight.confirmation_id) {
+  if (requiresConfirmation || input.confirmation_id) {
+    if (
+      !confirmation ||
+      confirmation.status !== "confirmed" ||
+      confirmation.id !== preflight.confirmation_id ||
+      confirmation.action_id !== preflight.action_id ||
+      confirmation.manifest_digest !== preflight.manifest_digest
+    ) {
       return { status: "confirmation_not_satisfied" as const };
+    }
+    const expiry = Date.parse(confirmation.expires_at);
+    if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+      return { status: "confirmation_expired" as const };
     }
   }
 

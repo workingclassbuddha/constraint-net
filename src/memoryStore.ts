@@ -23,20 +23,22 @@ export function createMemoryStore() {
 
   return {
     ingestManifest(manifest: ConstraintManifest, metadata: Partial<StoredManifest> = {}): StoredManifest {
-      const digest = sha256(manifest);
+      // Own a snapshot: caller-side mutations must not silently rewrite stored policy.
+      const snapshot = structuredClone(manifest);
+      const digest = sha256(snapshot);
       latestDigest = digest;
       const stored = {
         digest,
-        manifest,
+        manifest: snapshot,
         source_url: metadata.source_url,
         discovered_at: metadata.discovered_at ?? new Date().toISOString(),
         trust_status: metadata.trust_status ?? "trusted"
       };
       manifests.set(digest, stored);
 
-      for (const action of manifest.actions) {
+      for (const action of snapshot.actions) {
         actions.set(action.id, {
-          ...action,
+          ...structuredClone(action),
           manifest_digest: digest,
           publisher_domain: manifest.publisher.primary_domain
         });
