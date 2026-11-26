@@ -178,6 +178,9 @@ export type Confirmation = {
   id: string;
   action_id: string;
   manifest_digest: string;
+  actor_id: string;
+  preflight_id: string;
+  input_sha256: string;
   status: "pending" | "confirmed" | "denied";
   summary: {
     action_path: string[];
@@ -194,6 +197,8 @@ export type PreflightRecord = {
   id: string;
   action_id: string;
   manifest_digest: string;
+  actor_id: string;
+  input_sha256: string;
   inputs: Record<string, unknown>;
   status: "ready" | "confirmation_required";
   confirmation_id?: string;

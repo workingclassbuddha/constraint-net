@@ -34,7 +34,7 @@ export type ExecuteInput = {
   idempotency_key: string;
 };
 
-export function preflightAction(store: MemoryStore, input: PreflightInput): PreflightResult {
+export function preflightAction(store: MemoryStore, input: PreflightInput, actorId = "local-demo"): PreflightResult {
   const action = store.getActionById(input.action_id);
   if (!action) return { status: "action_not_found" };
 
@@ -75,12 +75,14 @@ export function preflightAction(store: MemoryStore, input: PreflightInput): Pref
   });
 
   if (action.risk.tier === 2 || action.confirmation.required) {
-    const confirmation = buildConfirmation(store, action);
+    const confirmation = buildConfirmation(store, action, preflightId, input.inputs, actorId);
     store.savePreflight({
       id: preflightId,
       action_id: action.id,
       manifest_digest: action.manifest_digest,
-      inputs: input.inputs,
+      actor_id: actorId,
+      input_sha256: sha256(input.inputs),
+      inputs: structuredClone(input.inputs),
       status: "confirmation_required",
       confirmation_id: confirmation.id,
       intent_receipt_id: intentReceipt.receipt_id
@@ -101,7 +103,9 @@ export function preflightAction(store: MemoryStore, input: PreflightInput): Pref
     id: preflightId,
     action_id: action.id,
     manifest_digest: action.manifest_digest,
-    inputs: input.inputs,
+    actor_id: actorId,
+    input_sha256: sha256(input.inputs),
+    inputs: structuredClone(input.inputs),
     status: "ready",
     intent_receipt_id: intentReceipt.receipt_id
   });
@@ -118,15 +122,17 @@ export function preflightAction(store: MemoryStore, input: PreflightInput): Pref
 
 export type ConfirmationDecisionResult =
   | { status: "confirmed" | "denied"; confirmation: Confirmation }
-  | { status: "confirmation_not_found" | "confirmation_expired" | "confirmation_already_decided" };
+  | { status: "confirmation_not_found" | "confirmation_expired" | "confirmation_already_decided" | "confirmation_actor_mismatch" };
 
 export function decideConfirmation(
   store: MemoryStore,
   id: string,
-  decision: "confirm" | "deny"
+  decision: "confirm" | "deny",
+  actorId = "local-demo"
 ): ConfirmationDecisionResult {
   const confirmation = store.getConfirmation(id);
   if (!confirmation) return { status: "confirmation_not_found" };
+  if (confirmation.actor_id !== actorId) return { status: "confirmation_actor_mismatch" };
   if (confirmation.status !== "pending") return { status: "confirmation_already_decided" };
   const expiry = Date.parse(confirmation.expires_at);
   if (!Number.isFinite(expiry) || expiry <= Date.now()) return { status: "confirmation_expired" };
@@ -139,10 +145,16 @@ export function decideConfirmation(
   return { status: updated.status as "confirmed" | "denied", confirmation: updated };
 }
 
-export function executePreflight(store: MemoryStore, input: ExecuteInput) {
+export function executePreflight(store: MemoryStore, input: ExecuteInput, actorId = "local-demo") {
   const preflight = store.getPreflight(input.preflight_id);
   if (!preflight) {
     return { status: "preflight_not_found" as const };
+  }
+  if (preflight.actor_id !== actorId) {
+    return { status: "approval_actor_mismatch" as const };
+  }
+  if (preflight.input_sha256 !== sha256(preflight.inputs)) {
+    return { status: "preflight_input_tampered" as const };
   }
 
   const action = store.getActionById(preflight.action_id);
@@ -167,7 +179,10 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput) {
       confirmation.status !== "confirmed" ||
       confirmation.id !== preflight.confirmation_id ||
       confirmation.action_id !== preflight.action_id ||
-      confirmation.manifest_digest !== preflight.manifest_digest
+      confirmation.manifest_digest !== preflight.manifest_digest ||
+      confirmation.actor_id !== actorId ||
+      confirmation.preflight_id !== preflight.id ||
+      confirmation.input_sha256 !== preflight.input_sha256
     ) {
       return { status: "confirmation_not_satisfied" as const };
     }
@@ -283,11 +298,20 @@ export function executePreflight(store: MemoryStore, input: ExecuteInput) {
   };
 }
 
-function buildConfirmation(store: MemoryStore, action: StoredAction): Confirmation {
+function buildConfirmation(
+  store: MemoryStore,
+  action: StoredAction,
+  preflightId: string,
+  inputs: Record<string, unknown>,
+  actorId: string
+): Confirmation {
   const confirmation: Confirmation = {
-    id: store.nextId("conf", { action_id: action.id, manifest_digest: action.manifest_digest }),
+    id: store.nextId("conf", { action_id: action.id, manifest_digest: action.manifest_digest, actorId }),
     action_id: action.id,
     manifest_digest: action.manifest_digest,
+    actor_id: actorId,
+    preflight_id: preflightId,
+    input_sha256: sha256(inputs),
     status: "pending",
     summary: {
       action_path: [action.stable_id],
